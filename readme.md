@@ -24,7 +24,14 @@ end
 
 GameClass = Reflect.GetClass("RPGGame")
 GameInstance = GameClass()
-GameInstance:Run()
+-- RPGGame:Initialize
+--  Game:Initialize
 
+GameInstance:Run()
+-- RPGGame:Run
+
+```
+
+```
 ```
 

@@ -61,7 +61,6 @@ function Reflect.EnumSubclassOf(inClassObject)
 	if nil == inClassObject or nil == inClassObject.Static then
 		return nil
 	end
-
 	return coroutine.wrap(function()
 		for Subclass in pairs(inClassObject.Subclasses) do
 			for SubclassLeaf in Reflect.EnumSubclassOf(Subclass) do
@@ -71,7 +70,7 @@ function Reflect.EnumSubclassOf(inClassObject)
 		end
 	end)
 end
-function Reflect.DebugPrint(inClassObject)
+function Reflect.DebugPrintClass(inClassObject)
 	if nil == inClassObject or nil == inClassObject.Static then
 		return
 	end
@@ -98,6 +97,9 @@ end
 function class(inName, inSuperClass)
 	assert(type(inName) == 'string', "A name (string) is needed for the new class");
 	
+	--[[
+		Reflect
+	]]--
 	local function ReflectRegister(inClassObject)
 		if nil == inClassObject or nil == inClassObject.Static then
 			return
@@ -117,52 +119,75 @@ function class(inName, inSuperClass)
 		Reflect.RootClasses[inClassObject.Name] = nil
 	end
 	
-	local function CreateIndexWrapper(inClassObject, inMember)
-		if inMember == nil then
-			return inClassObject.Members
-		else
-			return function(self, inName)
-				local Member = inClassObject.Members[inName]
-				if Member ~= nil then
-					return Member
-				elseif type(inMember) == "function" then
-					return (f(self, inName))
-				else
-					return inMember[inName]
-				end
-			end
-		end
-	end
-	local function PropagateInstanceMethod(inClassObject, inName, inMember)
-		inMember = name == "__index" and CreateIndexWrapper(inClassObject, inMember) or inMember
-		
-		print("Update "..inClassObject.Name.." Member:"..inName)
-		inClassObject.Members[inName] = inMember
-
-		for SubClass in pairs(inClassObject.Subclasses) do
-			if rawget(SubClass.DeclaredMembers, inName) == nil then
-				PropagateInstanceMethod(SubClass, inName, inMember)
-			end
-		end
-	end
 	local function DeclareInstanceMethod(inClassObject, inName, inMember)
-		print(inClassObject.Name.." DescaredMember:"..inName)
+		--print(inClassObject.Name.." DescaredMember:"..inName)
 		inClassObject.DeclaredMembers[inName] = inMember
-
-		if inMember == nil and inClassObject.Super then
-			inMember = inClassObject.Super.Members[inName]
-		end
-
-		PropagateInstanceMethod(inClassObject, inName, inMember)
+		
+		-- TODO: 是否允许覆盖类自己包含的函数呢？
+		inClassObject.Static[inName] = inMember
 	end
-	function InitializeClassMetatable(inClassObject)
+	
+	local function DefaultInitialize(self, ...)
+	end
+	local function DefaultSubclassed(self, other)
+	end
+	
+	local function ConstructInstance(inInstance, ...)
+		if nil ~= inInstance.Super then
+			ConstructInstance(inInstance.Super, ...)
+		end
+		if DefaultInitialize ~= inInstance.Initialize then
+			inInstance:Initialize(...)
+		end
+		return inInstance
+	end
+	
+	-- TODO: 针对对象深度拷贝
+	local function DepthCopy(Value)
+		return Value
+	end
+	
+	local function CreateInstance(inClassObject)
+		local InstanceSuper = nil
+		if nil ~= inClassObject.Super then
+			InstanceSuper = CreateInstance(inClassObject.Super)
+		end
+		
+		local InstanceMembers 	= {}
+		local instance = {
+			Class			= inClassObject,
+			Super   		= InstanceSuper,
+			InstanceMembers = InstanceMembers
+		}
+		
+		for MemberName, MemberValue in pairs(inClassObject.DeclaredMembers) do
+			InstanceMembers[MemberName] = DepthCopy(MemberValue);
+		end
+		setmetatable(instance, {
+			__index = function(_, key)
+				local Value = rawget(InstanceMembers, key)
+				if nil == Value and nil ~= InstanceSuper then
+					return InstanceSuper[key]
+				end
+				return Value
+			end,
+			__newindex = function(_, key, value)
+				InstanceMembers[key] = value
+			end,
+			__tostring = function(self)
+				return "instance of "..tostring(inClassObject)
+			end
+		})
+		return instance
+	end
+	
+	
+	local function InitializeClassMetatable(inClassObject)
 		setmetatable(inClassObject, {
 			__index 	= inClassObject.Static,
 			__newindex 	= DeclareInstanceMethod,
 			__call 		= function(self, ...)
-				local instance = self:Allocate()
-				instance:Initialize(...)
-				return instance
+				return ConstructInstance(self:Allocate(), ...)
 			end,
 			
 			__tostring  = function(self)
@@ -170,18 +195,10 @@ function class(inName, inSuperClass)
 			end
 		})
 	end
-
 	local function InitializeClassStaticMethod(inClassObject)
-		
-		inClassObject.Static.OnSubclassed = function(self, other)
-			
-		end
+		inClassObject.Static.OnSubclassed = DefaultSubclassed
 		inClassObject.Static.Allocate     = function(self)
-			local instance = setmetatable({Class = self}, self.Members)
-			instance.__tostring = function(self)
-				return "instance of "..tostring(self.Class)
-			end
-			return instance
+			return CreateInstance(self)
 		end
 		inClassObject.Static.IsSubclassOf = function(self, other)
 			return type(self) == 'table' and type(other) == 'table' and
@@ -190,12 +207,6 @@ function class(inName, inSuperClass)
 		inClassObject.Static.Deattch	  = function(self)
 			setmetatable(self, {})
 			ReflectUnregister(self)
-		end
-	end
-	local function InitializeClassMethod(inClassObject)
-		inClassObject.Initialize   		= function(self, ...) end
-		inClassObject.IsInstanceOf 		= function(self, other)
-			return type(other) == 'table' and (self.Class == other or self.Class:IsSubclassOf(other))
 		end
 	end
 	local function CreateClass(inName, inSuperClass)
@@ -210,21 +221,6 @@ function class(inName, inSuperClass)
 			DeclaredMembers	= {},		Subclasses	= setmetatable({}, {__mode='k'})
 		}
 
-		if inSuperClass then
-			setmetatable(ClassObject.Static, { 
-				__index = function(_,k)
-					print("__index:"..tostring(k))
-					print( debug.traceback() )
-					return rawget(MembersTable,k) or inSuperClass.Static[k]
-			end})
-		else
-			setmetatable(ClassObject.Static, { 
-				__index = function(_,k)
-				 	print("__index: none parent "..tostring(k))
-					print( debug.traceback() )
-					return rawget(MembersTable,k)
-			end})
-		end
 		InitializeClassMetatable(ClassObject)
 		InitializeClassStaticMethod(ClassObject)
 		
@@ -235,11 +231,12 @@ function class(inName, inSuperClass)
 	function CreateNoneclass(inName)
 		assert(type(inName) == "string", "You must provide a name(string) for your class")
 		
-		local Noneclass = CreateClass(inName)
-		
-		InitializeClassMethod(Noneclass)
-		
-		return Noneclass
+		local ClassObject = CreateClass(inName)
+		ClassObject.Initialize   		= DefaultInitialize
+		ClassObject.IsInstanceOf 		= function(self, other)
+			return type(other) == 'table' and (self.Class == other or self.Class:IsSubclassOf(other))
+		end
+		return ClassObject
 	end
 
 	function CreateSubclass(inName, inSuperClass)
@@ -247,13 +244,7 @@ function class(inName, inSuperClass)
 
 		local Subclass = CreateClass(inName, inSuperClass)
 
-		for MemberName, Member in pairs(inSuperClass.Members) do
-			print(inName..".AddMember "..inSuperClass.Name.."."..MemberName)
-			PropagateInstanceMethod(Subclass, MemberName, Member)
-		end
-		Subclass.Initialize = function(inInstance, ...)
-			inSuperClass.Initialize(inInstance, ...)
-		end
+		Subclass.Initialize = DefaultInitialize
 
 		inSuperClass.Subclasses[Subclass] = true
 		inSuperClass:OnSubclassed(Subclass)
@@ -269,85 +260,3 @@ function class(inName, inSuperClass)
 	
 end
 
-
-
---[[
-	Example
-]]--
-Actor = class("Actor")
-function Actor:Initialize()
-	print("Actor:Initialize")
-end
-function Actor:Run()
-	print("Actor:Run")
-end
-
-World = class("World")
-World.Actors = {}
-function World:AddActor(inActor)
-	if not inActor:IsSubclassOf(Actor) then
-		print("Error: World only add Actor type")
-	end
-	
-	table.insert(self.Actors, inActor)
-end
-function World:Run()
-	print("World:Run")
-	for i,actor in pairs(self.Actors) do
-		actor:Run()
-	end
-end
-
-Game = class("Game");
-Game.World = {}
-function Game:Initialize()
-	print("Game:Initialize")
-	
-	self.World = World();
-end
-function Game:Run()
-	print("Game:Run")
-	
-	self.World:Run()
-end
-
-
-StaticMeshActor = class("StaticMeshActor", Actor)
-function StaticMeshActor:Initialize()
-	---StaticMeshActor.Super:Initialize()
-	print("StaticMeshActor:Initialize")
-end
-function StaticMeshActor:Run()
-	print("StaticMeshActor:Run")
-end
-
-SkeletonMeshActor = class("SkeletonMeshActor", Actor)
-function SkeletonMeshActor:Run()
-	print("SkeletonMeshActor:Run")
-end
-
-RockActor = class("RockActor", StaticMeshActor)
-function RockActor:Run()
-	print("RockActor:Run")
-end
-
-Player = class("Player", SkeletonMeshActor)
-function Player:Run()
-	print("Player:Run")
-end
-
-RPGGame = class("RPGGame", Game)
-function RPGGame:Initialize()
-	--RPGGame.Super:Initialize()
-	print("RPGGame:Initialize")
-	
-	self.World:AddActor(RockActor())
-	self.World:AddActor(Player())
-end
-
-GameClass = Reflect.GetClass("RPGGame")
-GameInstance = GameClass()
-GameInstance:Run()
-
-
---Reflect.DebugPrint(Actor)
