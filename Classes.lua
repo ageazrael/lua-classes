@@ -157,7 +157,15 @@ function class(inName, inSuperClass)
 		local instance = {
 			Class			= inClassObject,
 			Super   		= InstanceSuper,
-			InstanceMembers = InstanceMembers
+			InstanceMembers = InstanceMembers,
+			Static 			= setmetatable({}, {
+				__index = function(self, key)
+					return inClassObject.Static[key]
+				end,
+				__newindex = function(self, key, value)
+					print("Static AND-not operation")
+				end
+			})
 		}
 		
 		for MemberName, MemberValue in pairs(inClassObject.DeclaredMembers) do
@@ -210,15 +218,10 @@ function class(inName, inSuperClass)
 		end
 	end
 	local function CreateClass(inName, inSuperClass)
-		local MembersTable = {}
-		MembersTable.__index = MembersTable
-
-		-- Members: 计算继承、覆盖后该类包含的成员
-		-- DeclaredMembers: 该类字定的成员
 		local ClassObject = {
-			Name			= inName,	Super		= inSuperClass,
-			Static			= {},		Members		= MembersTable,
-			DeclaredMembers	= {},		Subclasses	= setmetatable({}, {__mode='k'})
+			Name        = inName,	Super		    = inSuperClass,
+			Static      = {},		DeclaredMembers	= {},
+			Subclasses	= setmetatable({}, {__mode='k'})
 		}
 
 		InitializeClassMetatable(ClassObject)
@@ -259,4 +262,3 @@ function class(inName, inSuperClass)
 	end
 	
 end
-
