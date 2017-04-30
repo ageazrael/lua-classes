@@ -38,9 +38,9 @@ function StaticMemberError:DoRun()
 	
 	TInstance1.SimInstance.TB.Value = 200
 	
-	-- ÕâºÜÌÖÑáÄØ, Ôö¼ÓÉî¶È¿½±´¿ÉÒÔ½â¾öÕâ¸öÎÊÌâ£¬µ«ÊÇ»áÈÃÀà¶ÔÏóµÄ³õÊ¼»¯±äµÄ¸ü¼Ó»ºÂý¡£
-	-- 	¶øÇÒºÜÄÑ¿ØÖÆÀà³õÊ¼»¯¸´ÔÓ¶È£¬ÓÐ±ðµÄ·½·¨´úÌæËûÃÇ
-	--  ¶¨ÒåÀàµÄÊ±ºò¶¨ÒåµÄ±äÁ¿ÊÇ¾²Ì¬±äÁ¿°¡
+	-- è¿™å¾ˆè®¨åŽŒå‘¢, å¢žåŠ æ·±åº¦æ‹·è´å¯ä»¥è§£å†³è¿™ä¸ªé—®é¢˜ï¼Œä½†æ˜¯ä¼šè®©ç±»å¯¹è±¡çš„åˆå§‹åŒ–å˜çš„æ›´åŠ ç¼“æ…¢ã€‚
+	-- 	è€Œä¸”å¾ˆéš¾æŽ§åˆ¶ç±»åˆå§‹åŒ–å¤æ‚åº¦ï¼Œæœ‰åˆ«çš„æ–¹æ³•ä»£æ›¿ä»–ä»¬
+	--  å®šä¹‰ç±»çš„æ—¶å€™å®šä¹‰çš„å˜é‡æ˜¯é™æ€å˜é‡å•Š
 	self:Equal(TInstance1.SimInstance.Value, TInstance2.SimInstance.Value)
 	self:Equal(Sim.Value, TInstance1.Static.SimInstance.Value)
 end
