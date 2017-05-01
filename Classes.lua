@@ -76,7 +76,7 @@ function Reflect.DebugPrintClass(inClassObject)
 	end
 	
 	print(inClassObject)
-	for key, value in pairs(inClassObject.Members) do
+	for key, value in pairs(inClassObject.DeclaredMembers) do
 		if type(value) ~= 'function' and type(value) ~= 'table' then
 			print('    '..key.."="..tostring(value).."("..type(value)..")")
 		end
